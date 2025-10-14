@@ -21,6 +21,8 @@ A simple inference framework for the CURE-Bench bio-medical AI competition. This
 
 ### Installation Dependencies
 ```bash
+python -m venv env
+source env/bin/activate
 pip install -r requirements.txt
 ```
 

@@ -14,7 +14,7 @@ Usage:
 """
 
 import os
-from eval_framework import CompetitionKit, load_and_merge_config, create_metadata_parser
+from core.eval_framework import CompetitionKit, load_and_merge_config, create_metadata_parser
 
 
 def main():
