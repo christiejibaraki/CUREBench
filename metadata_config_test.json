@@ -9,8 +9,8 @@
     "additional_info": "Submission using configuration file"
   },
   "dataset": {
-    "dataset_name": "cure_bench_pharse_1",
-    "dataset_path": "path/to/curebench_testset_phase1.jsonl",
+    "dataset_name": "cure_bench_phase1_test",
+    "dataset_path": "resources/curebench_testset_phase1.jsonl",
     "description": "CureBench 2025 test questions"
   },
   "output_dir": "competition_test_results"

@@ -9,8 +9,8 @@
     "additional_info": "Submission using configuration file"
   },
   "dataset": {
-    "dataset_name": "cure_bench_pharse_1",
-    "dataset_path": "path/to/curebench_valset.jsonl",
+    "dataset_name": "cure_bench_phase1_val",
+    "dataset_path": "resources/curebench_valset_pharse1.jsonl",
     "description": "CureBench 2025 val questions"
   }
 }
