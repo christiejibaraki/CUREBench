@@ -377,7 +377,7 @@ class CompetitionKit:
         if model_type == "chatgpt":
             self.model = ChatGPTModel(model_name)
         elif model_type == "gpt-oss-20b":
-            self.model = GPTOSS20BModel(model_name)
+            self.model = GPTOSS20BModel("openai/gpt-oss-20b")
         elif model_type == "local":
             self.model = LocalModel(model_name)
         elif model_type == "custom":
