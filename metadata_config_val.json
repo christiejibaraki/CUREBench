@@ -1,10 +1,10 @@
 {
   "metadata": {
-    "model_name": "Qwen/Qwen3-8B",
-    "model_type": "LocalModel",
+    "model_name": "gpt-oss-20b",
+    "model_type": "Open weight model",
     "track": "internal_reasoning",
     "base_model_type": "Open weight model",
-    "base_model_name": "Qwen/Qwen3-8B",
+    "base_model_name": "gpt-oss-20b",
     "dataset": "cure_bench_pharse_1",
     "additional_info": "Submission using configuration file"
   },
@@ -12,5 +12,6 @@
     "dataset_name": "cure_bench_phase1_val",
     "dataset_path": "resources/curebench_valset_pharse1.jsonl",
     "description": "CureBench 2025 val questions"
-  }
+  },
+  "output_dir": "competition_test_results"
 }

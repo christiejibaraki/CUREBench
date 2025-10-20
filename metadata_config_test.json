@@ -1,10 +1,10 @@
 {
   "metadata": {
-    "model_name": "gpt-4o-1120",
-    "model_type": "ChatGPTModel",
+    "model_name": "gpt-oss-20b",
+    "model_type": "Open weight model",
     "track": "internal_reasoning",
-    "base_model_type": "API",
-    "base_model_name": "gpt-4o-1120",
+    "base_model_type": "Open weight model",
+    "base_model_name": "gpt-oss-20b",
     "dataset": "cure_bench_pharse_1",
     "additional_info": "Submission using configuration file"
   },
