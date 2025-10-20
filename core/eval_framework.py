@@ -207,7 +207,7 @@ class GPTOSS20BModel(BaseModel):
         self,
         model_name: str,
         quantization: str = "auto",          # auto | fp16 | bf16 | 8bit
-        reasoning_lvl: str = "medium",       # low | medium | high
+        reasoning_lvl: str = "low",       # low | medium | high
         system_identity: str = None,         # optional system override
         developer_instructions: str = None,  # optional developer message
     ):
