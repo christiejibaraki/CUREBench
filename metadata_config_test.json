@@ -5,7 +5,7 @@
     "track": "internal_reasoning",
     "base_model_type": "Open weight model",
     "base_model_name": "gpt-oss-20b",
-    "dataset": "cure_bench_pharse_1",
+    "dataset": "cure_bench_phase1_test",
     "additional_info": "Submission using configuration file"
   },
   "dataset": {
