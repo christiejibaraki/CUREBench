@@ -55,12 +55,14 @@ You are an expert medical assistant specializing in answering questions.
 
 
 stop_sequences = [
-    # 1. Stops the loop of internal reasoning tags
+    # Official Harmony Terminators
+    "<|end|>", "<|return|>",
+    # internal reasoning tags
     "assistantfinal",
-
-    # 2. Stops the common repetitive noise (often necessary)
+    # common repetitive noise
     "analysisdone", "analysisEnd", "analysisCompleted", "analysisDone", "analysisAnswer"
 ]
+
 
 class CustomStopStringCriteria(StoppingCriteria):
     """Custom criteria to stop generation when a specific string is found."""
@@ -70,8 +72,9 @@ class CustomStopStringCriteria(StoppingCriteria):
         self.tokenizer = tokenizer
 
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> bool:
+        lookback_window = 50
         # Decode the last generated token sequence
-        last_tokens = input_ids[0, -10:].tolist() # Check the last few tokens for performance
+        last_tokens = input_ids[0, lookback_window:].tolist() # Check the last few tokens for performance
         text = self.tokenizer.decode(last_tokens, skip_special_tokens=False)
 
         # Check if any stop string is present in the decoded text
@@ -355,6 +358,7 @@ class GPTOSS20BModel(BaseModel):
         if stop_strings:
             criteria = CustomStopStringCriteria(stop_strings, self.tokenizer)
             stopping_criteria.append(criteria)
+        print(f"stopping criteria: {stopping_criteria}")
 
         outputs = self.model.generate(
             input_ids,
