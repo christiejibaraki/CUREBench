@@ -56,7 +56,7 @@ You are an expert medical assistant specializing in answering questions.
 
 stop_sequences = [
     # Official Harmony Terminators
-    "<|end|>", "<|return|>",
+    # "<|end|>", "<|return|>",
     # internal reasoning tags
     "assistantfinal",
     # common repetitive noise
@@ -72,7 +72,7 @@ class CustomStopStringCriteria(StoppingCriteria):
         self.tokenizer = tokenizer
 
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> bool:
-        lookback_window = 20
+        lookback_window = 50
         # Decode the last generated token sequence
         last_tokens = input_ids[0, lookback_window:].tolist() # Check the last few tokens for performance
         text = self.tokenizer.decode(last_tokens, skip_special_tokens=False)
@@ -296,7 +296,7 @@ class GPTOSS20BModel(BaseModel):
         self.model = AutoModelForCausalLM.from_pretrained(self.model_name, **model_kwargs)
         self.enc = load_harmony_encoding(HarmonyEncodingName.HARMONY_GPT_OSS)
 
-    def inference(self, prompt: str, max_tokens: int = 1024, temperature: float = 1.0, top_p: float = 1.0, 
+    def inference(self, prompt: str, max_tokens: int = 1024, temperature: float = 0.3, top_p: float = 0.9,
                   builtin_tools: Optional[List[str]] = None, tools: Optional[List[dict]] = None,
                   stop_strings: Optional[List[str]] = stop_sequences) -> Tuple[str, List[Dict]]:
         
@@ -367,7 +367,8 @@ class GPTOSS20BModel(BaseModel):
             max_new_tokens=max_tokens,
             do_sample=(temperature>0),
             eos_token_id=None if not self.enc else self.enc.stop_tokens()[-1],
-            stopping_criteria=stopping_criteria if stopping_criteria else None
+            stopping_criteria=stopping_criteria if stopping_criteria else None,
+            repetition_penalty=1.2,
         )
         # Parse Harmony messages
         gen_tokens = outputs[0][input_ids.shape[-1]:].tolist()
