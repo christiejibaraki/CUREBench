@@ -39,6 +39,21 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
+system_identity = """
+You are an expert medical assistant specializing in answering questions.
+
+**Your communication MUST strictly adhere to the Harmony channels:**
+1.  **analysis:** Use this for all internal Chain-of-Thought (CoT), clinical reasoning, and factual processing. This content is for internal use only.
+2.  **final:** Use this channel for the final output intended for the user.
+
+**Output Rule is Conditional:**
+* **If the input is a Multiple-Choice Question (MCQ):** Your output MUST be a single, valid JSON object containing only the selected answer letter.
+    * **Format:** `{"answer": "<LETTER>"}` (e.g., `{"answer": "A"}`)
+* **If the input is an Open-Ended Question:** Your output MUST be a detailed, coherent narrative response.
+
+**Instruction:** Generate a complete response. The final output must use the 'final' channel and adhere to the conditional format rule."""
+
+
 class CustomStopStringCriteria(StoppingCriteria):
     """Custom criteria to stop generation when a specific string is found."""
     def __init__(self, stop_strings: List[str], tokenizer):
@@ -301,7 +316,7 @@ class GPTOSS20BModel(BaseModel):
                 return_tensors="pt",
                 reasoning_effort=self.reasoning_lvl,
                 model_identity=self.system_identity
-                    or "You are ChatGPT, a large language model trained by OpenAI.",
+                    or system_identity,
                 builtin_tools=builtin_tools,
                 tools=tools,
             ).to(self.model.device)
@@ -319,7 +334,7 @@ class GPTOSS20BModel(BaseModel):
                 return_tensors="pt",
                 reasoning_effort=self.reasoning_lvl,
                 model_identity=self.system_identity
-                    or "You are ChatGPT, a large language model trained by OpenAI.",
+                    or system_identity,
                 builtin_tools=builtin_tools,
                 tools=tools,
             ).to(self.model.device)
@@ -411,7 +426,7 @@ class CompetitionKit:
         if model_type == "chatgpt":
             self.model = ChatGPTModel(model_name)
         elif model_type == "gpt-oss-20b":
-            self.model = GPTOSS20BModel("openai/gpt-oss-20b", system_identity="You are a clinical trial assistant.")
+            self.model = GPTOSS20BModel("openai/gpt-oss-20b", system_identity=system_identity)
         elif model_type == "local":
             self.model = LocalModel(model_name)
         elif model_type == "custom":
@@ -602,7 +617,6 @@ class CompetitionKit:
                 })
         
         return dataset_list
-
     
     def _get_prediction_with_trace(self, example: Dict) -> Tuple[Dict, str]:
         """Get model prediction and reasoning trace for a single example"""
@@ -611,7 +625,7 @@ class CompetitionKit:
         
         # Format prompt
         if question_type == "multi_choice":
-            prompt = f"The following is a multiple choice question about medicine. Answer with only the letter (A, B, C, D, or E).\n\nQuestion: {question}\n\nAnswer:"
+            prompt = f"The following is a multiple choice question about medicine. Answer with a valid json containing the letter corresponding to the correct answer.\n\nQuestion: {question}\n\nAnswer:"
         elif question_type == "open_ended_multi_choice" or question_type == "open_ended":
             prompt = f"The following is an open-ended question about medicine. Provide a comprehensive answer.\n\nQuestion: {question}\n\nAnswer:"
         
