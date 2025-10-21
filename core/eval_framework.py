@@ -79,7 +79,9 @@ class CustomStopStringCriteria(StoppingCriteria):
         # Use a large lookback to catch patterns but avoid breaking token structure
         lookback_window = 300
         last_tokens = input_ids[0, -lookback_window:].tolist()
-        text = self.tokenizer.decode(last_tokens, skip_special_tokens=False)
+        # Decode with skip_special_tokens=True so we can actually see the text content
+        # (Harmony uses special tokens like <|start|>assistant<|channel|>final that would be invisible otherwise)
+        text = self.tokenizer.decode(last_tokens, skip_special_tokens=True)
         
         # Only stop if we see EXTREME repetition (same 100+ char block repeated)
         if len(text) > 200:
