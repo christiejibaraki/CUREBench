@@ -54,6 +54,14 @@ You are an expert medical assistant specializing in answering questions.
 **Instruction:** Generate a complete response. The final output must use the 'final' channel and adhere to the conditional format rule."""
 
 
+stop_sequences = [
+    # 1. Stops the loop of internal reasoning tags
+    "assistantfinal",
+
+    # 2. Stops the common repetitive noise (often necessary)
+    "analysisdone", "analysisEnd", "analysisCompleted", "analysisDone", "analysisAnswer"
+]
+
 class CustomStopStringCriteria(StoppingCriteria):
     """Custom criteria to stop generation when a specific string is found."""
     def __init__(self, stop_strings: List[str], tokenizer):
@@ -287,7 +295,7 @@ class GPTOSS20BModel(BaseModel):
 
     def inference(self, prompt: str, max_tokens: int = 1024, temperature: float = 1.0, top_p: float = 1.0, 
                   builtin_tools: Optional[List[str]] = None, tools: Optional[List[dict]] = None,
-                  stop_strings: Optional[List[str]] = None) -> Tuple[str, List[Dict]]:
+                  stop_strings: Optional[List[str]] = stop_sequences) -> Tuple[str, List[Dict]]:
         
         from openai_harmony import Role
         import logging
