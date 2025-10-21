@@ -57,10 +57,15 @@ You are an expert medical assistant specializing in answering questions.
 stop_sequences = [
     # Official Harmony Terminators
     # "<|end|>", "<|return|>",
-    # internal reasoning tags
-    "assistantfinal",
+    # internal reasoning tags - catch when final answer is complete
+    "assistantfinal{\"answer\":",
+    "}assistantfinal",
+    "}analysis",
     # common repetitive noise
-    "analysisdone", "analysisEnd", "analysisCompleted", "analysisDone", "analysisAnswer"
+    "analysisdone", "analysisEnd", "analysisCompleted", "analysisDone", "analysisAnswer",
+    # catch repetitive patterns
+    "The task: The user wrote",
+    "The user asks:"
 ]
 
 
@@ -70,17 +75,29 @@ class CustomStopStringCriteria(StoppingCriteria):
         super().__init__()
         self.stop_strings = stop_strings
         self.tokenizer = tokenizer
+        self.previous_text = ""
+        self.repeat_count = 0
 
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> bool:
-        lookback_window = 50
-        # Decode the last generated token sequence
-        last_tokens = input_ids[0, lookback_window:].tolist() # Check the last few tokens for performance
+        lookback_window = 150
+        # Decode the last generated token sequence (FIX: use negative index to get last N tokens)
+        last_tokens = input_ids[0, -lookback_window:].tolist()
         text = self.tokenizer.decode(last_tokens, skip_special_tokens=False)
 
         # Check if any stop string is present in the decoded text
         for stop_str in self.stop_strings:
             if stop_str in text:
                 return True
+        
+        # Additional check: detect if the same content is being repeated
+        if len(text) > 50 and text in self.previous_text:
+            self.repeat_count += 1
+            if self.repeat_count > 2:
+                return True
+        else:
+            self.repeat_count = 0
+        
+        self.previous_text = text
         return False
 
 
@@ -368,7 +385,8 @@ class GPTOSS20BModel(BaseModel):
             do_sample=(temperature>0),
             eos_token_id=None if not self.enc else self.enc.stop_tokens()[-1],
             stopping_criteria=stopping_criteria if stopping_criteria else None,
-            repetition_penalty=1.2,
+            repetition_penalty=1.3,  # Increased from 1.2 to further discourage repetition
+            no_repeat_ngram_size=3,  # Prevent repetition of 3-grams
         )
         # Parse Harmony messages
         gen_tokens = outputs[0][input_ids.shape[-1]:].tolist()
