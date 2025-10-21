@@ -72,7 +72,7 @@ class CustomStopStringCriteria(StoppingCriteria):
         self.tokenizer = tokenizer
 
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> bool:
-        lookback_window = 50
+        lookback_window = 20
         # Decode the last generated token sequence
         last_tokens = input_ids[0, lookback_window:].tolist() # Check the last few tokens for performance
         text = self.tokenizer.decode(last_tokens, skip_special_tokens=False)
