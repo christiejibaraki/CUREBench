@@ -25,15 +25,37 @@ import os
 import sys
 import logging
 import argparse
+import torch# Import for stopping criteria
+import torch
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
 from tqdm import tqdm
 from abc import ABC, abstractmethod
+from transformers import StoppingCriteria, StoppingCriteriaList
 import csv
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+
+class CustomStopStringCriteria(StoppingCriteria):
+    """Custom criteria to stop generation when a specific string is found."""
+    def __init__(self, stop_strings: List[str], tokenizer):
+        super().__init__()
+        self.stop_strings = stop_strings
+        self.tokenizer = tokenizer
+
+    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> bool:
+        # Decode the last generated token sequence
+        last_tokens = input_ids[0, -10:].tolist() # Check the last few tokens for performance
+        text = self.tokenizer.decode(last_tokens, skip_special_tokens=False)
+
+        # Check if any stop string is present in the decoded text
+        for stop_str in self.stop_strings:
+            if stop_str in text:
+                return True
+        return False
 
 
 @dataclass
@@ -249,11 +271,13 @@ class GPTOSS20BModel(BaseModel):
         self.enc = load_harmony_encoding(HarmonyEncodingName.HARMONY_GPT_OSS)
 
     def inference(self, prompt: str, max_tokens: int = 1024, temperature: float = 1.0, top_p: float = 1.0, 
-                  builtin_tools: Optional[List[str]] = None, tools: Optional[List[dict]] = None,) -> Tuple[str, List[Dict]]:
+                  builtin_tools: Optional[List[str]] = None, tools: Optional[List[dict]] = None,
+                  stop_strings: Optional[List[str]] = None) -> Tuple[str, List[Dict]]:
         
         from openai_harmony import Role
         import logging
-        from transformers import AutoTokenizer  
+        from transformers import AutoTokenizer
+        import torch
 
         # Build message list
         messages = []
@@ -300,6 +324,15 @@ class GPTOSS20BModel(BaseModel):
                 tools=tools,
             ).to(self.model.device)
 
+        # Build Stopping Criteria List ---
+        # 1. Start with the official stop tokens from the Harmony encoding
+        stopping_criteria = StoppingCriteriaList()
+
+        # 2. Add custom string-based stop criteria for the observed noise
+        if stop_strings:
+            criteria = CustomStopStringCriteria(stop_strings, self.tokenizer)
+            stopping_criteria.append(criteria)
+
         outputs = self.model.generate(
             input_ids,
             temperature=temperature,
@@ -307,6 +340,7 @@ class GPTOSS20BModel(BaseModel):
             max_new_tokens=max_tokens,
             do_sample=(temperature>0),
             eos_token_id=None if not self.enc else self.enc.stop_tokens()[-1],
+            stopping_criteria=stopping_criteria if stopping_criteria else None
         )
         # Parse Harmony messages
         gen_tokens = outputs[0][input_ids.shape[-1]:].tolist()
