@@ -55,32 +55,48 @@ You are an expert medical assistant specializing in answering questions.
 
 
 stop_sequences = [
-    # Official Harmony Terminators
-    # "<|end|>", "<|return|>",
-    # internal reasoning tags
-    "assistantfinal",
-    # common repetitive noise
-    "analysisdone", "analysisEnd", "analysisCompleted", "analysisDone", "analysisAnswer"
+    # Use very conservative stop sequences to avoid breaking Harmony token structure
+    # Let Harmony's native stopping handle most cases
+    # Only catch extreme repetition patterns that clearly indicate infinite loops
 ]
 
 
 class CustomStopStringCriteria(StoppingCriteria):
-    """Custom criteria to stop generation when a specific string is found."""
+    """Custom criteria to stop generation only in extreme repetition cases."""
     def __init__(self, stop_strings: List[str], tokenizer):
         super().__init__()
         self.stop_strings = stop_strings
         self.tokenizer = tokenizer
+        self.call_count = 0
 
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> bool:
-        lookback_window = 50
-        # Decode the last generated token sequence
-        last_tokens = input_ids[0, lookback_window:].tolist() # Check the last few tokens for performance
-        text = self.tokenizer.decode(last_tokens, skip_special_tokens=False)
-
-        # Check if any stop string is present in the decoded text
-        for stop_str in self.stop_strings:
-            if stop_str in text:
+        self.call_count += 1
+        
+        # Only check every 10 calls to reduce overhead and avoid breaking mid-token
+        if self.call_count % 10 != 0:
+            return False
+        
+        # Use a large lookback to catch patterns but avoid breaking token structure
+        lookback_window = 300
+        last_tokens = input_ids[0, -lookback_window:].tolist()
+        # Decode with skip_special_tokens=True so we can actually see the text content
+        # (Harmony uses special tokens like <|start|>assistant<|channel|>final that would be invisible otherwise)
+        text = self.tokenizer.decode(last_tokens, skip_special_tokens=True)
+        
+        # Only stop if we see EXTREME repetition (same 100+ char block repeated)
+        if len(text) > 200:
+            mid = len(text) // 2
+            first_half = text[:mid]
+            second_half = text[mid:]
+            # If the second half starts with the same content as first half, it's looping
+            if len(first_half) > 100 and second_half.startswith(first_half[:100]):
                 return True
+        
+        # Check for custom stop strings only if provided
+        for stop_str in self.stop_strings:
+            if stop_str and stop_str in text:
+                return True
+        
         return False
 
 
@@ -296,7 +312,7 @@ class GPTOSS20BModel(BaseModel):
         self.model = AutoModelForCausalLM.from_pretrained(self.model_name, **model_kwargs)
         self.enc = load_harmony_encoding(HarmonyEncodingName.HARMONY_GPT_OSS)
 
-    def inference(self, prompt: str, max_tokens: int = 1024, temperature: float = 0.3, top_p: float = 0.9,
+    def inference(self, prompt: str, max_tokens: int = 512, temperature: float = 0.3, top_p: float = 0.9,
                   builtin_tools: Optional[List[str]] = None, tools: Optional[List[dict]] = None,
                   stop_strings: Optional[List[str]] = stop_sequences) -> Tuple[str, List[Dict]]:
         
@@ -368,7 +384,8 @@ class GPTOSS20BModel(BaseModel):
             do_sample=(temperature>0),
             eos_token_id=None if not self.enc else self.enc.stop_tokens()[-1],
             stopping_criteria=stopping_criteria if stopping_criteria else None,
-            repetition_penalty=1.2,
+            repetition_penalty=1.3,  # Increased from 1.2 to further discourage repetition
+            no_repeat_ngram_size=3,  # Prevent repetition of 3-grams
         )
         # Parse Harmony messages
         gen_tokens = outputs[0][input_ids.shape[-1]:].tolist()
@@ -386,9 +403,45 @@ class GPTOSS20BModel(BaseModel):
                 final_response = "".join(c.text for c in parsed[-1].content if hasattr(c, "text"))
 
         except Exception as e:
-            logging.error(f"[Harmony parse error] {e}")
+            # Harmony parsing failed - likely due to incomplete token sequence
+            logging.warning(f"[Harmony parse error] {e} - Using raw decode fallback")
+            
+            # Decode the raw text
             text = self.tokenizer.decode(gen_tokens, skip_special_tokens=True).strip()
-            final_response = text
+            
+            # Post-process: truncate at first sign of repetition
+            import re
+            # Find the first complete JSON answer
+            json_match = re.search(r'\{"answer"\s*:\s*"([A-E])"\}', text)
+            if json_match:
+                # Find where this match ends
+                match_end = json_match.end()
+                # Look for repetition after the answer
+                after_answer = text[match_end:]
+                # If we see the same question or analysis starting again, truncate
+                repeat_markers = ["The user asks:", "The task: The user wrote", "assistantfinalanalysis"]
+                for marker in repeat_markers:
+                    if marker in after_answer:
+                        # Truncate at the repetition
+                        text = text[:match_end + after_answer.index(marker)]
+                        break
+                
+                final_response = f'{{"answer": "{json_match.group(1)}"}}'
+            else:
+                # Look for assistantfinal content
+                final_match = re.search(r'assistantfinal(.+?)(?:analysis|assistant|$)', text, re.DOTALL)
+                if final_match:
+                    final_response = final_match.group(1).strip()
+                else:
+                    # Last resort: use the full text but truncate obvious loops
+                    # If we see "The user asks:" or "The task:" appearing multiple times, keep only first occurrence
+                    for marker in ["The user asks:", "The task: The user"]:
+                        parts = text.split(marker)
+                        if len(parts) > 2:  # Appears more than once
+                            text = parts[0] + marker + parts[1]
+                            break
+                    final_response = text
+            
             reasoning_trace = [{"role": "assistant", "content": text}]
 
         return final_response.strip(), reasoning_trace
