@@ -20,7 +20,6 @@ from core.eval_framework import CompetitionKit, load_and_merge_config, create_me
 def main():
     # Create argument parser with metadata support
     parser = create_metadata_parser()
-    
     args = parser.parse_args()
     
     # Load configuration from config file if provided and merge with args
@@ -53,25 +52,31 @@ def main():
     # Show available datasets
     print("Available datasets:")
     kit.list_datasets()
-    
-    # Run evaluation (with optional subset_size)
+
+    # Initialize output file for streaming
+    csv_writer, csv_file = kit.initialize_output(config_path=config_path, args=args)
+
+    # Run evaluation (with optional subset_size) and stream results
     subset_size = getattr(args, 'subset_size', None)
     print(f"Running evaluation on dataset: {dataset_name} (subset-size={subset_size})")
     results = kit.evaluate(dataset_name, subset_size=subset_size)
     
     # Generate submission with metadata from config/args
     print("Generating submission with metadata...")
-    submission_path = kit.save_submission_with_metadata(
-        results=[results],
-        filename=output_file,
-        config_path=getattr(args, 'config', None),
-        args=args
-    )
-    
+    # submission_path = kit.save_submission_with_metadata(
+    #     results=[results],
+    #     filename=output_file,
+    #     config_path=getattr(args, 'config', None),
+    #     args=args
+    # )
+
     print(f"\n✅ Evaluation completed successfully!")
     print(f"📊 Accuracy: {results.accuracy:.2%} ({results.correct_predictions}/{results.total_examples})")
+
+    # Close csv and finalize output
+    submission_path = kit.finalize_output(csv_file, results)
     print(f"📄 Submission saved to: {submission_path}")
-    
+
     # Show metadata summary if verbose
     final_metadata = kit.get_metadata(getattr(args, 'config', None), args)
     print("\n📋 Final metadata:")

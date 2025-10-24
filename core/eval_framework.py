@@ -446,6 +446,7 @@ class GPTOSS20BModel(BaseModel):
 
         return final_response.strip(), reasoning_trace
 
+
 class CompetitionKit:
     """
     Simple competition framework - everything you need in one class!
@@ -465,10 +466,11 @@ class CompetitionKit:
         self.config = json.load(open(config_path, 'r')) if config_path else {}
         
         self.output_dir = self.config.get('output_dir', 'results')
-        
-        # Create output directory
-        os.makedirs(self.output_dir, exist_ok=True)
-        
+        self.metadata_path = None
+        self.metadata_filename = None
+        self.csv_path = None
+        self.csv_filename = None
+
         # Load dataset configurations from config file or use defaults
         self.datasets = self._load_dataset_configs(self.config)
     
@@ -542,12 +544,15 @@ class CompetitionKit:
         else:
             return "local"
     
-    def evaluate(self, dataset_name: str, subset_size: int = None) -> EvaluationResult:
+    def evaluate(self, dataset_name: str, csv_writer: csv.DictWriter,
+                 subset_size: int = None) -> EvaluationResult:
         """
         Evaluate model on a dataset
         
         Args:
             dataset_name: Name of dataset to evaluate on
+            csv_writer: csv.DictWriter for streaming output
+            subset_size: int number of examples to evaluate
             
         Returns:
             EvaluationResult object with scores and predictions
@@ -586,6 +591,11 @@ class CompetitionKit:
                 prediction, reasoning_trace = self._get_prediction_with_trace(example)
                 predictions.append(prediction)
                 reasoning_traces.append(reasoning_trace)
+
+                # stream output
+                self._write_prediction_to_csv(csv_writer,
+                                              prediction, reasoning_trace,
+                                              example, i)
                 
                 # Check if correct based on question type
                 is_correct = False
@@ -736,7 +746,7 @@ class CompetitionKit:
             prediction["open_ended_answer"] = response.strip()
         
         return prediction, reasoning_trace
-    
+
     def _extract_multiple_choice_answer(self, response: str) -> str:
         """Extract letter answer from model response"""
         if not response or response is None:
@@ -763,8 +773,116 @@ class CompetitionKit:
         
         # Default to empty string if nothing found (to avoid None values in CSV)
         return ""
-    
-    def save_submission(self, results: List[EvaluationResult], filename: str = "submission.csv", 
+
+    def _write_prediction_to_csv(self, csv_writer, prediction, reasoning_trace, example, index):
+        """
+        Write a single prediction to CSV
+
+        Args:
+            csv_writer: csv.DictWriter for writing output
+            prediction: dict containing model "choice" and "open_ended_answer"
+            reasoning_trace: List of reasoning message dictionaries
+            example: dict containing original dataset example
+            index: integer index of current example
+        """
+        example_id = str(example.get("id", str(index)) or f"unknown_{index}"),
+
+        # Clean up text fields to avoid CSV formatting issues
+        prediction_text = prediction.get("open_ended_answer", "") or ""  # Ensure not None
+        if not prediction_text or prediction_text.strip() == "":
+            prediction_text = "No prediction available"
+
+        # Ensure choice is clean and never NULL
+        choice_raw = prediction.get("choice", "")
+        if choice_raw is None or str(choice_raw).upper() in ['NULL', 'NONE', 'NAN']:
+            choice_clean = "NOTAVALUE"  # Use NOTAVALUE instead of empty string
+            logger.warning(
+                f"Found NULL-like or empty choice for row {example_id}: '{choice_clean}' - replacing with NOTAVALUE")
+        elif str(choice_raw).strip() == "":
+            choice_clean = "NOTAVALUE"  # Replace empty strings with NOTAVALUE to avoid NULL validation issues
+        else:
+            choice_clean = str(choice_raw).strip()
+
+        # Ensure reasoning trace is not null
+        if not reasoning_trace or reasoning_trace == "null" or reasoning_trace.strip() == "":
+            reasoning_trace = "No reasoning available"
+
+        csv_writer.writerow({
+            "id": example_id,
+            "prediction": str(prediction_text),
+            "choice": str(choice_clean),
+            "reasoning": str(reasoning_trace)
+        })
+
+    def initialize_output(self, filename: str = "submission.csv",
+                          metadata: Dict = None, config_path: str = None,
+                          args: argparse.Namespace = None):
+        """
+        Initialize output directory and file
+
+        Args:
+            filename: Output CSV filename (will be used for CSV inside zip)
+            metadata: User-provided metadata dictionary containing model info, track, etc.
+            config_path: Path to configuration file containing metadata
+            args: Command line arguments containing metadata
+        """
+        csv_path = os.path.join(self.output_dir, filename)
+        # Open CSV file for streaming results
+        if os.path.exists(csv_path):
+            raise FileExistsError(
+                f"Output file already exists: {csv_path}. Please remove it or use a different filename.")
+        csv_file = open(csv_path, 'w', newline='', encoding='utf-8')
+        csv_writer = csv.DictWriter(csv_file, fieldnames=['id', 'prediction', 'choice', 'reasoning'])
+        csv_writer.writeheader()
+
+        # Get metadata from various sources with priority order
+        metadata = self.get_metadata(config_path, args, metadata)
+        # Create metadata JSON file
+        metadata_filename = "meta_data.json"
+        metadata_path = os.path.join(self.output_dir, metadata_filename)
+        with open(metadata_path, 'w') as f:
+            json.dump(metadata, f, indent=2)
+
+        self.metadata_path = metadata_path
+        self.metadata_filename = metadata_filename
+        self.csv_path = csv_path
+        self.csv_filename = filename
+        logger.info(f"Initialized CSV for streaming: {csv_path}")
+        return csv_writer, csv_file
+
+    def finalize_output(self, csv_file, results: List[EvaluationResult]):
+        """
+        Close CSV file, zip submission csv with metadata, and provide summary
+
+        Args:
+            csv_file: csv file containing eval results
+            results: List of EvaluationResult objects from evaluate()
+        """
+        import zipfile
+        # Close csv file
+        csv_file.close()
+
+        # Create ZIP file with CSV and metadata
+        zip_filename = self.csv_filename.replace('.csv', '.zip')
+        zip_path = os.path.join(self.output_dir, zip_filename)
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            # Add CSV file to zip
+            zipf.write(self.csv_path, self.csv_filename)
+            # Add metadata JSON to zip
+            zipf.write(self.metadata_path, self.metadata_filename)
+
+        # Calculate and log overall accuracy
+        total_correct = sum(r.correct_predictions for r in results)
+        total_examples = sum(r.total_examples for r in results)
+        overall_accuracy = total_correct / total_examples if total_examples > 0 else 0.0
+
+        logger.info(f"CSV submission saved to: {self.csv_path}")
+        logger.info(f"Metadata saved to: {self.metadata_path}")
+        logger.info(f"Submission package saved to: {zip_path}")
+        logger.info(
+            f"Overall accuracy (excluding open-ended questions): {overall_accuracy:.2%} ({total_correct}/{total_examples})")
+
+    def save_submission(self, results: List[EvaluationResult], filename: str = "submission.csv",
                        metadata: Dict = None, dataset_examples: List[Dict] = None,
                        config_path: str = None, args: argparse.Namespace = None):
         """
