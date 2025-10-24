@@ -8,7 +8,7 @@ via command line arguments and configuration files.
 Usage:
     # Basic usage
     python run.py                                      # Run with defaults
-    
+
     # With metadata via config file
     python run.py --config metadata_config.json
 """
@@ -21,21 +21,21 @@ def main():
     # Create argument parser with metadata support
     parser = create_metadata_parser()
     args = parser.parse_args()
-    
+
     # Load configuration from config file if provided and merge with args
     args = load_and_merge_config(args)
-    
+
     # Extract values dynamically with fallback defaults
-    output_file = getattr(args, 'output_file', "submission.csv") 
+    output_file = getattr(args, 'output_file', "submission.csv")
     dataset_name = getattr(args, 'dataset')
     model_name = getattr(args, 'model_path', None) or getattr(args, 'model_name', None)
     model_class = getattr(args, 'model_class', 'auto')
-    
+
     """Run evaluation with metadata support"""
     print("\n" + "="*60)
     print("🏥 CURE-Bench Competition - Evaluation")
     print("="*60)
-    
+
     # Initialize the competition kit
     config_path = getattr(args, 'config', None)
     # Use metadata_config.json as default if no config is specified
@@ -43,12 +43,12 @@ def main():
         default_config = "metadata_config.json"
         if os.path.exists(default_config):
             config_path = default_config
-    
+
     kit = CompetitionKit(config_path=config_path)
-    
+
     print(f"Loading model: {model_name}")
     kit.load_model(model_name, model_class)
-    
+
     # Show available datasets
     print("Available datasets:")
     kit.list_datasets()
@@ -59,8 +59,8 @@ def main():
     # Run evaluation (with optional subset_size) and stream results
     subset_size = getattr(args, 'subset_size', None)
     print(f"Running evaluation on dataset: {dataset_name} (subset-size={subset_size})")
-    results = kit.evaluate(dataset_name, subset_size=subset_size)
-    
+    results = kit.evaluate(dataset_name, csv_writer, subset_size=subset_size)
+
     # Generate submission with metadata from config/args
     print("Generating submission with metadata...")
     # submission_path = kit.save_submission_with_metadata(
@@ -82,7 +82,7 @@ def main():
     print("\n📋 Final metadata:")
     for key, value in final_metadata.items():
         print(f"  {key}: {value}")
-            
+
 
 
 if __name__ == "__main__":
