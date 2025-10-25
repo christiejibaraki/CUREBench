@@ -247,7 +247,6 @@ class GPTOSS20BModel(BaseModel):
         if stop_strings:
             criteria = CustomStopStringCriteria(stop_strings, self.tokenizer)
             stopping_criteria.append(criteria)
-        print(f"stopping criteria: {stopping_criteria}")
 
         outputs = self.model.generate(
             input_ids,
@@ -394,7 +393,7 @@ class CompetitionKit:
             Dictionary of dataset configurations
         """
         if not config:
-            print("Not config provided, existing.")
+            print("No config provided, existing.")
             exit(1)
 
         # Check if config has a single dataset configuration
@@ -405,7 +404,7 @@ class CompetitionKit:
             return {dataset_name: dataset_config}
         else:
             # If no dataset in config, return defaults
-            print("Not config found, existing.")
+            print("No config found, existing.")
             exit(1)
 
     def _detect_model_type(self, model_name: str) -> str:
@@ -459,22 +458,18 @@ class CompetitionKit:
 
         logger.info(f"Running evaluation on {total_count} examples...")
         for i, example in enumerate(tqdm(dataset, desc="Evaluating")):
+
+            prediction = None
+            reasong_trace = None
+
             try:
                 # Get prediction and reasoning trace
                 prediction, reasoning_trace = self._get_prediction_with_trace(example)
-                predictions.append(prediction)
-                reasoning_traces.append(reasoning_trace)
-
-                # stream output
-                self._write_prediction_to_csv(csv_writer,
-                                              prediction, reasoning_trace,
-                                              example, i)
 
                 # Check if correct based on question type
                 is_correct = False
                 question_type = example["question_type"]
                 expected_answer = example.get("answer")
-                print("expected_answer:", expected_answer)
 
                 if question_type == "multi_choice" or question_type == "open_ended_multi_choice":
                     # For multiple choice, compare the choice field
@@ -495,17 +490,25 @@ class CompetitionKit:
 
                 # Log progress
                 if (i + 1) % 10 == 0:
+                    # csv_writer.flush()
                     current_acc = accuracy_correct_count / accuracy_total_count if accuracy_total_count > 0 else 0.0
                     logger.info(f"Progress: {i+1}/{total_count}, Accuracy: {current_acc:.2%} (excluding open-ended)")
 
             except Exception as e:
-                logger.error(f"Error processing example {i}: {e}")
+                logger.error(f"Error processing example {i}: {e}", exc_info=True)
                 error_prediction = {
                     "choice": "NOTAVALUE",  # Use NOTAVALUE instead of empty string
                     "open_ended_answer": "Error"
                 }
-                predictions.append(error_prediction)
-                reasoning_traces.append("Error occurred during inference")
+                prediction = error_prediction
+                reasoning_trace = "Error occurred during inference"
+
+            # add results to list and stream output
+            predictions.append(prediction)
+            reasoning_traces.append(reasoning_trace)
+            self._write_prediction_to_csv(csv_writer,
+                              prediction, reasoning_trace,
+                              example, i)
 
         # Calculate final accuracy (excluding open-ended questions)
         accuracy = accuracy_correct_count / accuracy_total_count if accuracy_total_count > 0 else 0.0
@@ -677,6 +680,7 @@ class CompetitionKit:
             choice_clean = str(choice_raw).strip()
 
         # Ensure reasoning trace is not null
+        reasoning_trace = json.dumps(reasoning_trace)
         if not reasoning_trace or reasoning_trace == "null" or reasoning_trace.strip() == "":
             reasoning_trace = "No reasoning available"
 
