@@ -57,9 +57,10 @@ def main():
     csv_writer, csv_file = kit.initialize_output(config_path=config_path, args=args)
 
     # Run evaluation (with optional subset_size) and stream results
+    start_index = getattr(args, 'start_index', 0)
     subset_size = getattr(args, 'subset_size', None)
-    print(f"Running evaluation on dataset: {dataset_name} (subset-size={subset_size})")
-    results = kit.evaluate(dataset_name, csv_writer, subset_size=subset_size)
+    print(f"Running evaluation on dataset: {dataset_name}. Start index: {start_index} (subset-size={subset_size})")
+    results = kit.evaluate(dataset_name, csv_writer, start_index=start_index, subset_size=subset_size)
 
     # Generate submission with metadata from config/args
     print("Generating submission with metadata...")
@@ -82,7 +83,6 @@ def main():
     print("\n📋 Final metadata:")
     for key, value in final_metadata.items():
         print(f"  {key}: {value}")
-
 
 
 if __name__ == "__main__":

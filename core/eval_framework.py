@@ -417,13 +417,14 @@ class CompetitionKit:
             return "local"
 
     def evaluate(self, dataset_name: str, csv_writer: csv.DictWriter,
-                 subset_size: int = None) -> EvaluationResult:
+                 start_index: int = 0, subset_size: int = None) -> EvaluationResult:
         """
         Evaluate model on a dataset
 
         Args:
             dataset_name: Name of dataset to evaluate on
             csv_writer: csv.DictWriter for streaming output
+            start_index: int index of example at which to begin eval
             subset_size: int number of examples to evaluate
 
         Returns:
@@ -445,7 +446,9 @@ class CompetitionKit:
         self._last_dataset_examples = dataset
 
         if subset_size is not None and subset_size > 0:
-            dataset = dataset[:subset_size]
+            last_index = (start_index + subset_size)
+            dataset = dataset[start_index:last_index]
+            logger.info(f"Starting evaluation on example index: {start_index}. Last index: {last_index}")
             logger.info(f"Subset size applied: {len(dataset)} examples")
 
         # Run evaluation
@@ -1109,6 +1112,7 @@ def create_metadata_parser() -> argparse.ArgumentParser:
                        help='Output CSV filename for submission (will be packaged in zip)')
 
     # Evaluation settings
+    parser.add_argument('--start-index', type=int, help='Set example index to stat evaluation')
     parser.add_argument('--subset-size', type=int, help='Limit evaluation to N examples')
 
     return parser
