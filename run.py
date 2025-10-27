@@ -75,7 +75,7 @@ def main():
     print(f"📊 Accuracy: {results.accuracy:.2%} ({results.correct_predictions}/{results.total_examples})")
 
     # Close csv and finalize output
-    submission_path = kit.finalize_output(csv_file, results)
+    submission_path = kit.finalize_output(csv_file, [results])
     print(f"📄 Submission saved to: {submission_path}")
 
     # Show metadata summary if verbose
