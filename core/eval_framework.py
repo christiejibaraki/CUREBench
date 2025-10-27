@@ -708,14 +708,17 @@ class CompetitionKit:
         """
         # if output dir doesn't exist, create it
         if not os.path.exists(self.output_dir):
-          os.makedirs(self.output_dir)
-          print(f"Directory {self.output_dir} created successfully.")
+            os.makedirs(self.output_dir)
+            print(f"Directory {self.output_dir} created successfully.")
 
         # Open CSV file for streaming results
         csv_path = os.path.join(self.output_dir, filename)
-        csv_file = open(csv_path, 'w', newline='', encoding='utf-8')
+        csv_exists = os.path.exists(csv_path)
+        file_mode = 'a' if csv_exists else 'w'
+        csv_file = open(csv_path, file_mode, newline='', encoding='utf-8')
         csv_writer = csv.DictWriter(csv_file, fieldnames=['id', 'prediction', 'choice', 'reasoning'])
-        csv_writer.writeheader()
+        if not csv_exists:
+            csv_writer.writeheader()
 
         # Get metadata from various sources with priority order
         metadata = self.get_metadata(config_path, args, metadata)
