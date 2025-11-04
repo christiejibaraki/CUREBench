@@ -137,6 +137,45 @@ class BaseModel(ABC):
         pass
 
 
+class UnslothGPTOSS20BModel(BaseModel):
+    """Wrapper for unsloth gpt-oss-20b model (including fine-tuned version)"""
+
+    def __init__(
+        self,
+        model_name: str,
+        quantization: bool = True,       # auto | fp16 | bf16 | 8bit
+        reasoning_lvl: str = "low",       # low | medium | high
+        developer_instructions: str = None,  # optional developer message
+        lora_adapters: str = None # optional fine-tuned adapters
+    ):
+        super().__init__(model_name)
+        self.quantization = quantization
+        self.model = None
+        self.tokenizer = None
+        self.enc = None
+        self.reasoning_lvl = reasoning_lvl
+        self.developer_instructions = developer_instructions
+        self.lora_adapters = lora_adapters
+
+    def load(self, **kwargs):
+        from unsloth import FastLanguageModel
+
+        max_seq_length = 1024
+        dtype = None
+
+        self.model, self.tokenizer = FastLanguageModel.from_pretrained(
+            model_name=self.model_name,
+            dtype=dtype,  # None for auto detection
+            max_seq_length=max_seq_length,  # Choose any for long context!
+            load_in_4bit=self.quantization,  # 4 bit quantization to reduce memory
+            full_finetuning=False,  # [NEW!] We have full finetuning now!
+            # token = "hf_...", # use one if using gated models
+        )
+
+        if self.lora_adapters:
+            self.model.load_adapter(self.lora_adapters)
+
+
 class GPTOSS20BModel(BaseModel):
     """GPT-OSS-20B wrapper"""
 
@@ -152,7 +191,6 @@ class GPTOSS20BModel(BaseModel):
         self.quantization = quantization
         self.model = None
         self.tokenizer = None
-        self.enc = None
         self.reasoning_lvl = reasoning_lvl
         self.system_identity = system_identity
         self.developer_instructions = developer_instructions
@@ -182,8 +220,6 @@ class GPTOSS20BModel(BaseModel):
         if quant_config is not None:
             model_kwargs["quantization_config"] = quant_config
 
-        self.model = AutoModelForCausalLM.from_pretrained(self.model_name, **model_kwargs)
-        self.enc = load_harmony_encoding(HarmonyEncodingName.HARMONY_GPT_OSS)
 
     def inference(self, prompt: str, max_tokens: int = 512, temperature: float = 0.3, top_p: float = 0.9,
                   builtin_tools: Optional[List[str]] = None, tools: Optional[List[dict]] = None,
