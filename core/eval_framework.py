@@ -176,7 +176,9 @@ class UnslothGPTOSS20BModel(BaseModel):
             self.model.load_adapter(self.lora_adapters)
 
     def inference(self, prompt: str, max_tokens: int = 512, temperature: float = 0.3, top_p: float = 0.9) -> Tuple[str, List[Dict]]:
+        import re
 
+        #### Generate the output ####
         messages = []
         if self.developer_instructions:
             messages.append({"role": "developer", "content": self.developer_instructions})
@@ -190,18 +192,48 @@ class UnslothGPTOSS20BModel(BaseModel):
             return_dict=True,
             reasoning_effort=self.reasoning_lvl
         ).to("cuda")
-
         # Generate output
         output_ids = self.model.generate(
             **inputs,
             max_new_tokens=512
         )
+        # Decode the output, leaving special tokens
+        full_response = self.tokenizer.decode(output_ids[0], skip_special_tokens=False)
 
-        # Decode the output to see the full response
-        response = self.tokenizer.decode(output_ids[0], skip_special_tokens=False)
-        print(response)
+        #### Extract final reaspone and reasoning trace ####
+        # Regex Patterns
+        # pattern to find all assistant messages
+        ASSISTANT_MESSAGE_PATTERN = re.compile(
+            r'<\|start\|>assistant(?P<header>.+?)<\|message\|>(?P<content>.*?)(?=<\|end\|>|<\|start\|>|<\|return\|>|$)',
+            re.DOTALL | re.IGNORECASE
+        )
+        # pattern to extract the channel from the header
+        CHANNEL_PATTERN = re.compile(r'<\|channel\|>(?P<channel>\w+)')
 
-        return "test", []
+        reasoning_trace = []
+        final_response = "ERROR: Final response not found."
+
+        # Find all assistant messages in the full response
+        assistant_messages = ASSISTANT_MESSAGE_PATTERN.findall(full_response)
+
+        for header, content in assistant_messages:
+            # Extract the channel(s) from the header
+            channel_matches = CHANNEL_PATTERN.findall(header)
+
+            message_dict = {
+                "role": "assistant",
+                "channel": channel_matches[-1] if channel_matches else "unknown",
+                "content": content.strip()
+            }
+
+            # Add to the reasoning trace
+            reasoning_trace.append(message_dict)
+
+            # Check if this is the final message
+            if message_dict['channel'] == 'final':
+                final_response = message_dict['content']
+
+        return final_response, reasoning_trace
 
 
 class GPTOSS20BModel(BaseModel):
