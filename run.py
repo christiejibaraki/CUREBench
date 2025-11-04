@@ -62,15 +62,6 @@ def main():
     print(f"Running evaluation on dataset: {dataset_name}. Start index: {start_index} (subset-size={subset_size})")
     results = kit.evaluate(dataset_name, csv_writer, start_index=start_index, subset_size=subset_size)
 
-    # Generate submission with metadata from config/args
-    print("Generating submission with metadata...")
-    # submission_path = kit.save_submission_with_metadata(
-    #     results=[results],
-    #     filename=output_file,
-    #     config_path=getattr(args, 'config', None),
-    #     args=args
-    # )
-
     print(f"\n✅ Evaluation completed successfully!")
     print(f"📊 Accuracy: {results.accuracy:.2%} ({results.correct_predictions}/{results.total_examples})")
 
