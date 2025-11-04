@@ -140,9 +140,6 @@ class BaseModel(ABC):
 class UnslothGPTOSS20BModel(BaseModel):
     """Wrapper for unsloth gpt-oss-20b model (including fine-tuned version)"""
 
-    def inference(self, prompt: str, max_tokens: int = 1024) -> Tuple[str, List[Dict]]:
-        pass
-
     def __init__(
         self,
         model_name: str,
@@ -177,6 +174,34 @@ class UnslothGPTOSS20BModel(BaseModel):
 
         if self.lora_adapters:
             self.model.load_adapter(self.lora_adapters)
+
+    def inference(self, prompt: str, max_tokens: int = 512, temperature: float = 0.3, top_p: float = 0.9) -> Tuple[str, List[Dict]]:
+
+        messages = []
+        if self.developer_instructions:
+            messages.append({"role": "developer", "content": self.developer_instructions})
+        messages.append({"role": "user", "content": prompt})
+
+        # Apply chat template (from unsloth)
+        inputs = self.tokenizer.apply_chat_template(
+            messages,
+            add_generation_prompt=True,
+            return_tensors="pt",
+            return_dict=True,
+            reasoning_effort=self.reasoning_lvl
+        ).to("cuda")
+
+        # Generate output
+        output_ids = self.model.generate(
+            **inputs,
+            max_new_tokens=512
+        )
+
+        # Decode the output to see the full response
+        response = self.tokenizer.decode(output_ids[0], skip_special_tokens=False)
+        print(response)
+
+        return "test", []
 
 
 class GPTOSS20BModel(BaseModel):
