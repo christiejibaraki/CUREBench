@@ -140,13 +140,16 @@ class BaseModel(ABC):
 class UnslothGPTOSS20BModel(BaseModel):
     """Wrapper for unsloth gpt-oss-20b model (including fine-tuned version)"""
 
+    def inference(self, prompt: str, max_tokens: int = 1024) -> Tuple[str, List[Dict]]:
+        pass
+
     def __init__(
         self,
         model_name: str,
         quantization: bool = True,       # auto | fp16 | bf16 | 8bit
         reasoning_lvl: str = "low",       # low | medium | high
         developer_instructions: str = None,  # optional developer message
-        lora_adapters: str = None # optional fine-tuned adapters
+        lora_adapters: str = None  # optional fine-tuned adapters
     ):
         super().__init__(model_name)
         self.quantization = quantization
