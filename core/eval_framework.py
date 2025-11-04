@@ -512,7 +512,7 @@ class CompetitionKit:
         else:
             return "local"
 
-    def evaluate(self, dataset_name: str, csv_writer: csv.DictWriter,
+    def evaluate(self, dataset_name: str, csv_writer: csv.DictWriter=None,
                  start_index: int = 0, subset_size: int = None) -> EvaluationResult:
         """
         Evaluate model on a dataset
@@ -605,9 +605,10 @@ class CompetitionKit:
             # add results to list and stream output
             predictions.append(prediction)
             reasoning_traces.append(reasoning_trace)
-            self._write_prediction_to_csv(csv_writer,
-                              prediction, reasoning_trace,
-                              example, i)
+            if csv_writer:
+                self._write_prediction_to_csv(csv_writer,
+                                  prediction, reasoning_trace,
+                                  example, i)
 
         # Calculate final accuracy (excluding open-ended questions)
         accuracy = accuracy_correct_count / accuracy_total_count if accuracy_total_count > 0 else 0.0
