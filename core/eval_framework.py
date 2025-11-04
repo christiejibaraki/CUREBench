@@ -60,6 +60,10 @@ stop_sequences = [
     # Only catch extreme repetition patterns that clearly indicate infinite loops
 ]
 
+unsloth_model_name = "unsloth/gpt-oss-20b"
+unsloth_developer_instructions = "You are a medical expert for drug decision-making and treatment planning. During your analysis, determine if the question is multiple-choice (MC) or open-ended (OE). For MC questions, your final response must be ONLY the correct LETTER. For OE questions, provide a succinct, single sentence response."
+unsloth_lora_adapters = "cibaraki/medical-reasoning-gpt-oss-20b"
+
 
 class CustomStopStringCriteria(StoppingCriteria):
     """Custom criteria to stop generation only in extreme repetition cases."""
@@ -459,19 +463,12 @@ class CompetitionKit:
 
         logger.info(f"Loading model: {model_name} (type: {model_type})")
 
-        if model_type == "chatgpt":
-            self.model = ChatGPTModel(model_name)
-        elif model_type == "gpt-oss-20b":
+        if model_type == "gpt-oss-20b":
             self.model = GPTOSS20BModel("openai/gpt-oss-20b", system_identity=system_identity)
-        elif model_type == "local":
-            self.model = LocalModel(model_name)
-        elif model_type == "custom":
-            # For custom models, user should provide model_instance and inference_func
-            model_instance = kwargs.get("model_instance")
-            inference_func = kwargs.get("inference_func")
-            if not model_instance or not inference_func:
-                raise ValueError("Custom model requires 'model_instance' and 'inference_func' parameters")
-            self.model = CustomModel(model_name, model_instance, inference_func)
+        elif model_type == "unsloth/gpt-oss-20b":
+            self.model = UnslothGPTOSS20BModel(model_name=unsloth_model_name,
+                                               developer_instructions=unsloth_developer_instructions,
+                                               lora_adapters=unsloth_lora_adapters)
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
@@ -506,7 +503,10 @@ class CompetitionKit:
     def _detect_model_type(self, model_name: str) -> str:
         """Auto-detect model type based on model name"""
         if "gpt-oss-20b" in model_name.lower():
-            return "gpt-oss-20b"
+            if "unsloth" in model_name.lower():
+                return "unsloth/gpt-oss-20b"
+            else:
+                return "gpt-oss-20b"
         if any(name in model_name.lower() for name in ["gpt", "chatgpt", "openai", 'o1', 'o3', 'o4']):
             return "chatgpt"
         else:
@@ -674,11 +674,7 @@ class CompetitionKit:
         question = example["question"]
         question_type = example["question_type"]
 
-        # Format prompt
-        if question_type == "multi_choice":
-            prompt = f"The following is a multiple choice question about medicine. Answer with a valid json containing the letter corresponding to the correct answer.\n\nQuestion: {question}\n\nAnswer:"
-        elif question_type == "open_ended_multi_choice" or question_type == "open_ended":
-            prompt = f"The following is an open-ended question about medicine. Provide a comprehensive answer.\n\nQuestion: {question}\n\nAnswer:"
+        prompt = question
 
         # Get model response and messages using the model's inference method
         response, reasoning_trace = self.model.inference(prompt)
