@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "model_name": "gpt-oss-20b",
+    "model_name": "unsloth/gpt-oss-20b",
     "model_type": "Open weight model",
     "track": "internal_reasoning",
     "base_model_type": "Open weight model",

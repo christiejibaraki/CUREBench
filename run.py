@@ -29,7 +29,7 @@ def main():
     output_file = getattr(args, 'output_file', "submission.csv")
     dataset_name = getattr(args, 'dataset')
     model_name = getattr(args, 'model_path', None) or getattr(args, 'model_name', None)
-    model_class = getattr(args, 'model_class', 'auto')
+    model_class = "unsloth/gpt-oss-20b"
 
     """Run evaluation with metadata support"""
     print("\n" + "="*60)
